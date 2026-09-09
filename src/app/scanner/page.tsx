@@ -1,0 +1,2 @@
+import { Card } from "@/components/ui/card";
+export default function ScannerPage() { return <main className="container placeholder-page"><p className="eyebrow">Staff area</p><h1>Ticket scanner</h1><Card className="notice"><h2>Scanner setup arrives in Phase 6.</h2><p>This route is intentionally a non-functional placeholder. Authentication, camera access, QR reading, and ticket validation have not been implemented.</p></Card></main>; }

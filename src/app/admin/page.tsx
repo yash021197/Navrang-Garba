@@ -1,0 +1,2 @@
+import { Card } from "@/components/ui/card";
+export default function AdminPage() { return <main className="container placeholder-page"><p className="eyebrow">Operations area</p><h1>Admin dashboard</h1><Card className="notice"><h2>Dashboard setup arrives in Phase 7.</h2><p>This route is intentionally a non-functional placeholder. Authentication, booking data, ticket searches, and reporting have not been implemented.</p></Card></main>; }
