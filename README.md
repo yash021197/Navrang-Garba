@@ -49,6 +49,31 @@ Migrations live in `supabase/migrations/`; `supabase/seed.sql` creates the initi
 
 `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` may be used in browser code; RLS still protects data. `SUPABASE_SERVICE_ROLE_KEY`, Razorpay secrets, and `AUTH_SECRET` must remain server-only and never be committed. `.env.local` is ignored by Git.
 
+## Razorpay Test Mode
+
+Add these values only to `.env.local` (never commit them): `NEXT_PUBLIC_RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`. Obtain Test Mode credentials from Razorpay Dashboard → Settings → API Keys. The key ID is passed to Checkout; the two secrets remain server-only.
+
+For a local webhook, expose `/api/payments/webhook` with a temporary HTTPS tunnel such as ngrok or Cloudflare Tunnel, then create a **Test Mode** Razorpay webhook for `payment.captured` and copy its webhook secret into `RAZORPAY_WEBHOOK_SECRET`. Do not hardcode a tunnel URL. Checkout creates an order from the database amount, while `/api/payments/verify` and the webhook independently verify Razorpay signatures before setting payment and booking states to `PAID`.
+
+## Scanner staff provisioning
+
+Create the staff member in Supabase Authentication first, then obtain the user's UUID from the Auth dashboard. An administrator can grant scanner access with the following SQL, replacing the placeholder only:
+
+```sql
+insert into public.staff_users (user_id, role, active)
+values ('<AUTH_USER_UUID>', 'SCANNER', true);
+```
+
+To deactivate that staff member without deleting their Auth account:
+
+```sql
+update public.staff_users
+set active = false
+where user_id = '<AUTH_USER_UUID>';
+```
+
+The `/scanner` route permits only signed-in, active `SCANNER` staff. It has no scanning or ticket-consumption capability until Phase 6B.
+
 ## Roadmap
 
 1. Foundation - completed

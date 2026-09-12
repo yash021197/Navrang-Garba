@@ -1,2 +1,29 @@
-import { Card } from "@/components/ui/card";
-export default function ScannerPage() { return <main className="container placeholder-page"><p className="eyebrow">Staff area</p><h1>Ticket scanner</h1><Card className="notice"><h2>Scanner setup arrives in Phase 6.</h2><p>This route is intentionally a non-functional placeholder. Authentication, camera access, QR reading, and ticket validation have not been implemented.</p></Card></main>; }
+import { redirect } from "next/navigation";
+import { ScannerLogoutButton } from "@/components/scanner/logout-button";
+import { ScannerClient } from "@/components/scanner/scanner-client";
+import { requireScannerStaff } from "@/lib/scanner-auth";
+
+export default async function ScannerPage() {
+  const auth = await requireScannerStaff();
+
+  if (auth.error === 401) redirect("/scanner/login");
+
+  if (auth.error === 403) {
+    return (
+      <main className="container placeholder-page">
+        <h1>Unauthorized</h1>
+        <p>Your account is not an active scanner staff account.</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="container placeholder-page">
+      <p className="eyebrow">Staff only</p>
+      <h1>Navrang Garba Scanner</h1>
+      <p className="page-intro">Scanner session verified. Use the camera to validate one ticket at a time.</p>
+      <ScannerClient />
+      <ScannerLogoutButton />
+    </main>
+  );
+}

@@ -1,0 +1,13 @@
+.panel { display:grid; gap:1rem; max-width:34rem; margin:2rem 0; }
+.frame { overflow:hidden; border:2px solid var(--accent); border-radius:var(--radius); background:#21070c; aspect-ratio:1; }
+.frame > div { width:100%; height:100%; }
+.status { margin:0; color:var(--muted); font-weight:700; }
+.result { display:grid; gap:.7rem; border-radius:var(--radius); padding:1.25rem; }
+.result p,.result h2,.result strong,.result span { margin:0; }
+.result h2 { max-width:none; }
+.result span { font-weight:700; }
+.valid { border:2px solid var(--success); background:#e5f6eb; color:#105b34; }
+.denied { border:2px solid var(--danger); background:#fff0f1; color:#86182a; }
+.manual { display:grid; gap:.75rem; margin-top:1rem; border-top:1px solid var(--border); padding-top:1rem; }
+.manual label { display:grid; gap:.4rem; font-weight:700; }
+.manual input { min-height:3rem; border:1px solid var(--border); border-radius:.55rem; padding:.6rem .75rem; background:#fffdf7; font:inherit; }

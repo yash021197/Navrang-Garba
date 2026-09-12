@@ -1,0 +1,5 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabase } from "@/lib/supabase/browser";
+export default function ScannerLogin() { const router=useRouter(); const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [error,setError]=useState(""); const [loading,setLoading]=useState(false); async function submit(e: React.FormEvent){e.preventDefault();setLoading(true);setError("");const {error}=await createBrowserSupabase().auth.signInWithPassword({email,password});setLoading(false);if(error)setError("Invalid email or password.");else router.push('/scanner');} return <main className="container booking-page"><h1>Staff scanner login</h1><form className="form-panel" onSubmit={submit}><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required /></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required /></label>{error&&<p className="form-error">{error}</p>}<button className="button" disabled={loading}>{loading?'Signing in…':'Login'}</button></form></main>; }
