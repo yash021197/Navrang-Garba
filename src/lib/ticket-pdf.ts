@@ -9,6 +9,7 @@ export type TicketPdfInput = {
   customerName: string;
   eventDate: string;
   ticketType: string;
+  quantity: number;
   amount: number;
   orderDate: string;
 };
@@ -56,7 +57,7 @@ export async function createTicketPdf(input: TicketPdfInput): Promise<Buffer> {
     writeLabelValue(doc, "Time", "7 PM onwards", 302, 207, 215);
     writeLabelValue(doc, "Venue", "Ostwal Farms", 302, 249, 215);
     writeLabelValue(doc, "Address", "Beside Khandelwal Lawns, in front of TCC Mall, Badnera Road, Amravati - 444607", 302, 291, 215);
-    writeLabelValue(doc, "Ticket & price", `${input.ticketType} - ${formatAmount(input.amount)}`, 302, 349, 215);
+    writeLabelValue(doc, "Ticket & price", `${input.ticketType} × ${input.quantity} - ${formatAmount(input.amount)}`, 302, 349, 215);
 
     doc.roundedRect(48, 425, 499, 124, 14).fill("#711020");
     writeLabelValue(doc, "Ordered by", input.customerName, 72, 449, 190);

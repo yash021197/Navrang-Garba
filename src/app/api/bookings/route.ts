@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) return badRequest("Please select a quantity between 1 and 20.");
   if (!namePattern.test(name)) return badRequest("Enter your full name using valid characters.");
   if (!mobilePattern.test(mobile)) return badRequest("Enter a valid Indian mobile number.");
-  if (email && !emailPattern.test(email)) return badRequest("Enter a valid email address or leave it blank.");
+  if (!emailPattern.test(email)) return badRequest("Enter a valid email address.");
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) return badRequest("Please refresh and try again.");
 
   try {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       p_quantity: quantity,
       p_customer_name: name,
       p_mobile: mobile,
-      p_email: email || null,
+      p_email: email,
       p_idempotency_key: idempotencyKey,
     });
     if (error) {

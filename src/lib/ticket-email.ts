@@ -7,7 +7,7 @@ import { createTicketPdf } from "@/lib/ticket-pdf";
 export type EmailDelivery = { state: "SENT" | "FAILED" | "PENDING" | "NOT_REQUESTED"; maskedEmail?: string };
 type TicketRow = { id: string; booking_id: string; ticket_reference: string; ticket_email_status: string | null; ticket_email_sent_at: string | null };
 type BookingRow = {
-  id: string; booking_reference: string; amount: number | string; currency: string; payment_status: string; created_at: string;
+  id: string; booking_reference: string; amount: number | string; quantity: number; currency: string; payment_status: string; created_at: string;
   customers: Array<{ name: string; email: string | null }>;
   event_days: Array<{ event_date: string | null }>;
   ticket_types: Array<{ name: string }>;
@@ -33,7 +33,7 @@ export async function deliverTicketEmail(bookingReference: string, ticketReferen
   if (ticketError || !ticket || ticket.ticket_reference !== ticketReference) return { state: "FAILED" };
   if (ticket.ticket_email_sent_at || ticket.ticket_email_status === "SENT") return { state: "SENT" };
 
-  const { data: booking, error: bookingError } = await supabase.from("bookings").select("id,booking_reference,amount,currency,payment_status,created_at,customers(name,email),event_days(event_date),ticket_types(name),payments(status)").eq("id", ticket.booking_id).maybeSingle<BookingRow>();
+  const { data: booking, error: bookingError } = await supabase.from("bookings").select("id,booking_reference,amount,quantity,currency,payment_status,created_at,customers(name,email),event_days(event_date),ticket_types(name),payments(status)").eq("id", ticket.booking_id).maybeSingle<BookingRow>();
   if (bookingError || !booking || booking.booking_reference !== bookingReference || booking.payment_status !== "PAID" || !booking.payments.some((payment) => payment.status === "PAID")) return { state: "FAILED" };
   const customer = booking.customers[0];
   const eventDay = booking.event_days[0];
@@ -58,7 +58,7 @@ export async function deliverTicketEmail(bookingReference: string, ticketReferen
   try {
     const eventDate = eventDay?.event_date;
     if (!eventDate || !ticketType) throw new Error("Ticket event data is unavailable.");
-    const pdf = await createTicketPdf({ ticketReference, bookingReference, customerName: customer.name, eventDate, ticketType: ticketType.name, amount: Number(booking.amount), orderDate: booking.created_at });
+    const pdf = await createTicketPdf({ ticketReference, bookingReference, customerName: customer.name, eventDate, ticketType: ticketType.name, quantity: booking.quantity, amount: Number(booking.amount), orderDate: booking.created_at });
     const ticketUrl = `https://navranggarba.vercel.app/booking/success?reference=${encodeURIComponent(bookingReference)}`;
     const eventDateLabel = formatDate(eventDate);
     const html = `<main style="font-family:Arial,sans-serif;background:#fff7e4;color:#321316;padding:32px"><section style="max-width:600px;margin:auto;border:1px solid #e6c15f;border-radius:16px;overflow:hidden;background:#fffaf0"><header style="padding:28px;background:#5b0713;color:#fff7e4"><p style="margin:0;color:#e6c15f;font-weight:bold;letter-spacing:1px">NAVRANG GARBA 2026</p><h1 style="margin:10px 0 0;font-size:28px">Your ticket is confirmed</h1></header><div style="padding:28px"><p>Hello ${escapeHtml(customer.name)},</p><p>Your Navrang Garba 2026 booking is confirmed. Your ticket is attached as a PDF.</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:8px 0;color:#72514b">Date</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(eventDateLabel)}</td></tr><tr><td style="padding:8px 0;color:#72514b">Time</td><td style="padding:8px 0;font-weight:bold">7 PM onwards</td></tr><tr><td style="padding:8px 0;color:#72514b">Venue</td><td style="padding:8px 0;font-weight:bold">Ostwal Farms</td></tr><tr><td style="padding:8px 0;color:#72514b">Ticket</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(ticketType.name)}</td></tr><tr><td style="padding:8px 0;color:#72514b">Amount paid</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(formatAmount(booking.amount))}</td></tr><tr><td style="padding:8px 0;color:#72514b">Booking ID</td><td style="padding:8px 0;font-weight:bold">${escapeHtml(bookingReference)}</td></tr></table><p style="margin-top:24px">Please keep this ticket/QR ready when arriving. Each ticket QR can be scanned only once for entry.</p><p><a href="${ticketUrl}" style="display:inline-block;background:#5b0713;color:#fff7e4;padding:13px 18px;border-radius:8px;font-weight:bold;text-decoration:none">VIEW MY TICKET</a></p></div></section></main>`;
