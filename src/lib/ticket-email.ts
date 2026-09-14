@@ -8,15 +8,16 @@ export type EmailDelivery = { state: "SENT" | "FAILED" | "PENDING" | "NOT_REQUES
 type TicketRow = { id: string; booking_id: string; ticket_reference: string; ticket_email_status: string | null; ticket_email_sent_at: string | null };
 type BookingRow = {
   id: string; booking_reference: string; amount: number | string; quantity: number; currency: string; payment_status: string; created_at: string;
-  customers: Array<{ name: string; email: string | null }>;
-  event_days: Array<{ event_date: string | null }>;
-  ticket_types: Array<{ name: string }>;
+  customers: { name: string; email: string | null } | Array<{ name: string; email: string | null }> | null;
+  event_days: { event_date: string | null } | Array<{ event_date: string | null }> | null;
+  ticket_types: { name: string } | Array<{ name: string }> | null;
   payments: Array<{ status: string }>;
 };
 
 function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!); }
 function formatDate(value: string) { return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${value.slice(0, 10)}T00:00:00`)); }
 function formatAmount(value: number | string) { return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value)); }
+function singleRelation<T>(value: T | T[] | null) { return Array.isArray(value) ? value[0] ?? null : value; }
 
 export function maskEmail(email: string) {
   const [local, domain] = email.split("@");
@@ -35,9 +36,9 @@ export async function deliverTicketEmail(bookingReference: string, ticketReferen
 
   const { data: booking, error: bookingError } = await supabase.from("bookings").select("id,booking_reference,amount,quantity,currency,payment_status,created_at,customers(name,email),event_days(event_date),ticket_types(name),payments(status)").eq("id", ticket.booking_id).maybeSingle<BookingRow>();
   if (bookingError || !booking || booking.booking_reference !== bookingReference || booking.payment_status !== "PAID" || !booking.payments.some((payment) => payment.status === "PAID")) return { state: "FAILED" };
-  const customer = booking.customers[0];
-  const eventDay = booking.event_days[0];
-  const ticketType = booking.ticket_types[0];
+  const customer = singleRelation(booking.customers);
+  const eventDay = singleRelation(booking.event_days);
+  const ticketType = singleRelation(booking.ticket_types);
   if (!customer?.email) return { state: "NOT_REQUESTED" };
 
   const { data: claim, error: claimError } = await supabase.from("tickets").update({ ticket_email_status: "SENDING", ticket_email_attempted_at: new Date().toISOString(), ticket_email_error: null }).eq("id", ticket.id).is("ticket_email_sent_at", null).or("ticket_email_status.is.null,ticket_email_status.eq.FAILED").select("id").maybeSingle();

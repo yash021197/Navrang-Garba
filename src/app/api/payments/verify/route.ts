@@ -13,7 +13,11 @@ export async function POST(request: Request) {
     const supabase = createAdminClient();
     const { data: payment, error } = await supabase.from("payments").select("id,booking_id,status,provider_order_id,bookings(payment_status)").eq("provider_order_id", orderId).single();
     if (error || !payment || payment.provider_order_id !== orderId) return Response.json({ error: "Payment order not found." }, { status: 404 });
-    if (payment.status === "PAID") return Response.json({ paid: true });
+    if (payment.status === "PAID") {
+      const { data: booking } = await supabase.from("bookings").select("booking_reference").eq("id", payment.booking_id).single();
+      if (booking) await fulfillPaidBooking(booking.booking_reference).catch((error) => console.error("Ticket email fulfillment failed", error));
+      return Response.json({ paid: true });
+    }
     const { error: paymentError } = await supabase.from("payments").update({ status: "PAID", provider_payment_id: paymentId, provider_signature: signature, paid_at: new Date().toISOString() }).eq("id", payment.id).eq("status", "PENDING");
     if (paymentError) throw paymentError;
     const { error: bookingError } = await supabase.from("bookings").update({ payment_status: "PAID" }).eq("id", payment.booking_id).eq("payment_status", "PENDING");
