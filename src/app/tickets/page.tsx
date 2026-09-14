@@ -4,6 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+function singleRelation<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default async function TicketsPage() {
   const supabase = createAdminClient();
   const [{ data }, { data: overrides }] = await Promise.all([
@@ -26,8 +30,10 @@ export default async function TicketsPage() {
   }) satisfies TicketType[];
 
   const dateSpecificPrices = (overrides ?? []).flatMap((override) => {
-    const dayNumber = override.event_days?.[0]?.day_number;
-    const ticketTypeCode = override.ticket_types?.[0]?.code;
+    const eventDay = singleRelation(override.event_days);
+    const ticketType = singleRelation(override.ticket_types);
+    const dayNumber = eventDay?.day_number;
+    const ticketTypeCode = ticketType?.code;
     return typeof dayNumber === "number" && (ticketTypeCode === "SINGLE" || ticketTypeCode === "COUPLE" || ticketTypeCode === "GROUP_OF_4")
       ? [{ dayNumber, ticketTypeCode, price: Number(override.price) }]
       : [];
