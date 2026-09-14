@@ -8,4 +8,11 @@
 .priceInput input:focus { outline: 3px solid rgba(121,16,29,.18); border-color: var(--primary); }
 .actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .success { margin: 1rem 0 0; border-left: 4px solid var(--success); padding: .75rem 1rem; background: #e5f6eb; color: #0f6038; }
+.dateList { display: grid; gap: 1rem; }
+.dateCard { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; background: var(--surface); }
+.dateCard > h3 { margin: 0 0 .75rem; }
+.datePriceRow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--border); padding: .8rem 0; }
+.datePriceRow > div:first-child { display: grid; gap: .2rem; }
+.datePriceRow span { color: var(--primary); font-weight: 800; }
+.datePriceRow small { color: var(--muted); }
 @media (max-width: 620px) { .pricingRow { align-items: flex-start; flex-direction: column; } .actions, .pricingRow > :global(.button) { width: 100%; } .actions :global(.button) { flex: 1; } .priceInput input { width: 100%; } }

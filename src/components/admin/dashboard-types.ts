@@ -4,6 +4,18 @@ export type DashboardSnapshot = {
     name: string;
     price: number;
   }>;
+  dateSpecificPricing: Array<{
+    eventDayId: string;
+    dayNumber: number;
+    date: string | null;
+    prices: Array<{
+      code: "SINGLE" | "COUPLE" | "GROUP_OF_4";
+      name: string;
+      price: number;
+      defaultPrice: number;
+      isOverride: boolean;
+    }>;
+  }>;
   summary: {
     totalBookings: number;
     paidBookings: number;

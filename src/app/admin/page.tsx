@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardRefresh } from "@/components/admin/dashboard-refresh";
 import { AdminLogoutButton } from "@/components/admin/logout-button";
 import { PricingManager } from "@/components/admin/pricing-manager";
+import { DateSpecificPricingManager } from "@/components/admin/date-specific-pricing-manager";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAdminDashboard } from "@/lib/admin-dashboard";
 
@@ -26,6 +27,7 @@ export default async function AdminPage() {
       </section>
 
       <PricingManager pricing={dashboard.pricing} />
+      <DateSpecificPricingManager pricing={dashboard.dateSpecificPricing} />
 
       <section className="admin-section"><div className="admin-section-heading"><p className="eyebrow">Live overview</p><h2>Day-wise performance</h2></div><div className="admin-day-grid">
         {dashboard.days.map((day) => <article className="admin-day-card" key={day.dayNumber}><p>Day {day.dayNumber}</p><h3>{day.date ? date.format(new Date(`${day.date}T00:00:00`)) : "Date unavailable"}</h3><dl><div><dt>Paid bookings</dt><dd>{day.paidBookings}</dd></div><div><dt>Tickets</dt><dd>{day.tickets}</dd></div><div><dt>Revenue</dt><dd>{currency.format(day.revenue)}</dd></div><div><dt>Scanned</dt><dd>{day.scanned}</dd></div><div><dt>Unused</dt><dd>{day.unused}</dd></div></dl></article>)}

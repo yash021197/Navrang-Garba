@@ -18,6 +18,7 @@ type PaidBookingRow = {
 
 type TicketRow = { booking_id: string; event_day_id: string; status: "ACTIVE" | "USED" | "CANCELLED" };
 type EventDayRow = { id: string; day_number: number; event_date: string | null };
+type OverrideRow = { event_day_id: string; ticket_type_id: string; price: number | string };
 type ScanRow = {
   result: string;
   scanned_at: string;
@@ -49,19 +50,21 @@ function amount(value: number | string) {
 
 export async function getAdminDashboard(): Promise<DashboardSnapshot> {
   const supabase = createAdminClient();
-  const [bookingCountResult, eventDays, paidBookings, tickets, recentScansResult, ticketTypesResult] = await Promise.all([
+  const [bookingCountResult, eventDays, paidBookings, tickets, recentScansResult, ticketTypesResult, overridesResult] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }),
     supabase.from("event_days").select("id,day_number,event_date").lte("day_number", 9).order("day_number"),
     fetchAll<PaidBookingRow>((from, to) => supabase.from("bookings").select("id,booking_reference,amount,quantity,created_at,event_day_id,ticket_type_id,customers(name),event_days(day_number,event_date),ticket_types(code,name)").eq("payment_status", "PAID").order("created_at", { ascending: false }).range(from, to)),
     fetchAll<TicketRow>((from, to) => supabase.from("tickets").select("booking_id,event_day_id,status").range(from, to)),
     supabase.from("scan_logs").select("result,scanned_at,scanned_by,tickets(ticket_reference)").order("scanned_at", { ascending: false }).limit(10),
-    supabase.from("ticket_types").select("code,name,price").in("code", ticketTypeOrder),
+    supabase.from("ticket_types").select("id,code,name,price").in("code", ticketTypeOrder),
+    supabase.from("event_day_ticket_prices").select("event_day_id,ticket_type_id,price"),
   ]);
 
   if (bookingCountResult.error) throw new Error(bookingCountResult.error.message);
   if (eventDays.error) throw new Error(eventDays.error.message);
   if (recentScansResult.error) throw new Error(recentScansResult.error.message);
   if (ticketTypesResult.error) throw new Error(ticketTypesResult.error.message);
+  if (overridesResult.error) throw new Error(overridesResult.error.message);
 
   const paidBookingIds = new Set(paidBookings.map((booking) => booking.id));
   const paidTickets = tickets.filter((ticket) => paidBookingIds.has(ticket.booking_id));
@@ -107,6 +110,17 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
         price: amount(ticketType?.price ?? 0),
       };
     }),
+    dateSpecificPricing: dayRows.map((day) => ({
+      eventDayId: day.id,
+      dayNumber: day.day_number,
+      date: day.event_date,
+      prices: ticketTypeOrder.map((code) => {
+        const ticketType = ticketTypesResult.data?.find((item) => item.code === code);
+        const override = (overridesResult.data as OverrideRow[] | null)?.find((item) => item.event_day_id === day.id && item.ticket_type_id === ticketType?.id);
+        const defaultPrice = amount(ticketType?.price ?? 0);
+        return { code, name: ticketType?.name ?? code, price: override ? amount(override.price) : defaultPrice, defaultPrice, isOverride: Boolean(override) };
+      }),
+    })),
     summary: {
       totalBookings: bookingCountResult.count ?? 0,
       paidBookings: paidBookings.length,
