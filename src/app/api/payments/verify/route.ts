@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPaymentSignature } from "@/lib/razorpay";
+import { fulfillPaidBooking } from "@/lib/tickets";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
     if (paymentError) throw paymentError;
     const { error: bookingError } = await supabase.from("bookings").update({ payment_status: "PAID" }).eq("id", payment.booking_id).eq("payment_status", "PENDING");
     if (bookingError) throw bookingError;
+    const { data: booking } = await supabase.from("bookings").select("booking_reference").eq("id", payment.booking_id).single();
+    if (booking) await fulfillPaidBooking(booking.booking_reference).catch((error) => console.error("Ticket email fulfillment failed", error));
     return Response.json({ paid: true });
   } catch (error) { console.error("Razorpay verification failed", error); return Response.json({ error: "Payment verification failed." }, { status: 503 }); }
 }

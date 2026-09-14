@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { deliverTicketEmail, type EmailDelivery } from "@/lib/ticket-email";
 
 export type TicketRecord = { ticket_reference: string; status: string; booking_id: string; event_day_id: string; ticket_type_id: string };
 export async function generateTicketForPaidBooking(bookingReference: string): Promise<TicketRecord> {
@@ -16,4 +17,10 @@ export async function generateTicketForPaidBooking(bookingReference: string): Pr
   const { data: raced } = await supabase.from("tickets").select("ticket_reference,status,booking_id,event_day_id,ticket_type_id").eq("booking_id", booking.id).single();
   if (raced) return raced;
   throw insertError ?? new Error("TICKET_GENERATION_FAILED");
+}
+
+export async function fulfillPaidBooking(bookingReference: string): Promise<{ ticket: TicketRecord; email: EmailDelivery }> {
+  const ticket = await generateTicketForPaidBooking(bookingReference);
+  const email = await deliverTicketEmail(bookingReference, ticket.ticket_reference);
+  return { ticket, email };
 }
