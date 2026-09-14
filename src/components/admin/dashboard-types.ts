@@ -1,4 +1,9 @@
 export type DashboardSnapshot = {
+  pricing: Array<{
+    code: "SINGLE" | "COUPLE" | "GROUP_OF_4";
+    name: string;
+    price: number;
+  }>;
   summary: {
     totalBookings: number;
     paidBookings: number;
