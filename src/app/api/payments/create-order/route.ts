@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     if (error || !booking || !payment) return Response.json({ error: "Booking not found." }, { status: 404 });
     if (booking.payment_status === "PAID" || payment.status === "PAID") return Response.json({ error: "This booking has already been paid." }, { status: 409 });
     const amountPaise = Math.round(Number(booking.amount) * 100);
-    if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0 || booking.currency !== "INR") return Response.json({ error: "Payment configuration is unavailable." }, { status: 400 });
+    if (!Number.isSafeInteger(amountPaise) || amountPaise < 100 || booking.currency !== "INR") return Response.json({ error: "Payment configuration is unavailable." }, { status: 400 });
     let orderId = payment.provider_order_id;
     if (!orderId) {
       const order = await getRazorpay().orders.create({ amount: amountPaise, currency: "INR", receipt: bookingReference, notes: { booking_reference: bookingReference } });
