@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Html5Qrcode } from "html5-qrcode";
 import styles from "./scanner.module.css";
-type Result = { status: "VALID" | "ALREADY_USED" | "INVALID_TICKET"; entryAllowed: boolean; message: string; reason?: string; ticketReference?: string; eventDay?: string | null; ticketType?: string | null };
+type Result = { status: "VALID" | "ALREADY_USED" | "ALREADY_USED_TODAY" | "PASS_NOT_VALID_TODAY" | "INVALID_TICKET"; entryAllowed: boolean; message: string; reason?: string; ticketReference?: string; eventDay?: string | null; ticketType?: string | null };
 export function ScannerClient() {
   const scanner = useRef<Html5Qrcode | null>(null); const locked = useRef(false); const [camera, setCamera] = useState<"idle" | "starting" | "active" | "error">("idle"); const [cameraError, setCameraError] = useState(""); const [result, setResult] = useState<Result | null>(null); const [manual, setManual] = useState("");
   const stop = useCallback(async () => { const current = scanner.current; scanner.current = null; if (!current) return; try { await current.stop(); } catch {} try { await current.clear(); } catch {} }, []);

@@ -3,6 +3,7 @@ import { DashboardRefresh } from "@/components/admin/dashboard-refresh";
 import { AdminLogoutButton } from "@/components/admin/logout-button";
 import { PricingManager } from "@/components/admin/pricing-manager";
 import { DateSpecificPricingManager } from "@/components/admin/date-specific-pricing-manager";
+import { EarlyBirdManager } from "@/components/admin/early-bird-manager";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getAdminDashboard } from "@/lib/admin-dashboard";
 
@@ -27,6 +28,7 @@ export default async function AdminPage() {
       </section>
 
       <PricingManager pricing={dashboard.pricing} />
+      <EarlyBirdManager initial={dashboard.earlyBird} />
       <DateSpecificPricingManager pricing={dashboard.dateSpecificPricing} />
 
       <section className="admin-section"><div className="admin-section-heading"><p className="eyebrow">Live overview</p><h2>Day-wise performance</h2></div><div className="admin-day-grid">

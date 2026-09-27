@@ -28,6 +28,15 @@ export default async function TicketsPage() {
       active: current?.active ?? ticket.active,
     };
   }) satisfies TicketType[];
+  const earlyBirdRow = data?.find((item) => item.code === "EARLY_BIRD_9_DAY");
+  const earlyBird = earlyBirdRow ? {
+    code: "EARLY_BIRD_9_DAY" as const,
+    name: "Early Bird 9-Day Pass",
+    description: "One QR for one entry per event day, 11–19 October 2026.",
+    capacity: 1,
+    price: Number(earlyBirdRow.price),
+    active: earlyBirdRow.active,
+  } satisfies TicketType : null;
 
   const dateSpecificPrices = (overrides ?? []).flatMap((override) => {
     const eventDay = singleRelation(override.event_days);
@@ -39,5 +48,5 @@ export default async function TicketsPage() {
       : [];
   });
 
-  return <BookingFlow ticketTypes={ticketTypes} dateSpecificPrices={dateSpecificPrices} />;
+  return <BookingFlow ticketTypes={ticketTypes} earlyBird={earlyBird} dateSpecificPrices={dateSpecificPrices} />;
 }

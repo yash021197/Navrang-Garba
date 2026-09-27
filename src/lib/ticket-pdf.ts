@@ -12,6 +12,7 @@ export type TicketPdfInput = {
   quantity: number;
   amount: number;
   orderDate: string;
+  isEarlyBird?: boolean;
 };
 
 const maroon = "#5b0713";
@@ -50,14 +51,15 @@ export async function createTicketPdf(input: TicketPdfInput): Promise<Buffer> {
     doc.roundedRect(48, 140, 205, 205, 14).fill("#ffffff");
     doc.image(qr, 62, 154, { width: 177, height: 177 });
     doc.fillColor(cream).font("Helvetica-Bold").fontSize(10).text("SCAN AT ENTRY", 84, 362, { width: 135, align: "center" });
-    doc.font("Helvetica").fontSize(8).fillColor("#f7dfc0").text("One QR is valid for one entry only", 62, 378, { width: 178, align: "center" });
+    doc.font("Helvetica").fontSize(8).fillColor("#f7dfc0").text(input.isEarlyBird ? "One QR · one entry per event day" : "One QR is valid for one entry only", 62, 378, { width: 178, align: "center" });
 
     doc.roundedRect(278, 140, 269, 253, 14).lineWidth(1.2).strokeColor(gold).stroke();
-    writeLabelValue(doc, "Event date", formatDate(input.eventDate), 302, 165, 215);
+    writeLabelValue(doc, input.isEarlyBird ? "Valid" : "Event date", input.isEarlyBird ? "11–19 October 2026" : formatDate(input.eventDate), 302, 165, 215);
     writeLabelValue(doc, "Time", "7 PM onwards", 302, 207, 215);
     writeLabelValue(doc, "Venue", "Ostwal Farms", 302, 249, 215);
     writeLabelValue(doc, "Address", "Beside Khandelwal Lawns, in front of TCC Mall, Badnera Road, Amravati - 444607", 302, 291, 215);
     writeLabelValue(doc, "Ticket & price", `${input.ticketType} × ${input.quantity} - ${formatAmount(input.amount)}`, 302, 349, 215);
+    if (input.isEarlyBird) doc.font("Helvetica-Bold").fontSize(9).fillColor(gold).text("ONE ENTRY PER EVENT DAY", 302, 385, { width: 215 });
 
     doc.roundedRect(48, 425, 499, 124, 14).fill("#711020");
     writeLabelValue(doc, "Ordered by", input.customerName, 72, 449, 190);

@@ -4,7 +4,7 @@ import { eventConfig } from "@/lib/event-config";
 const mobilePattern = /^(?:\+91)?[6-9]\d{9}$/;
 const namePattern = /^[\p{L}\s.'-]{2,120}$/u;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ticketTypes = new Set(["SINGLE", "COUPLE", "GROUP_OF_4"]);
+const ticketTypes = new Set(["SINGLE", "COUPLE", "GROUP_OF_4", "EARLY_BIRD_9_DAY"]);
 
 function badRequest(message: string) { return Response.json({ error: message }, { status: 400 }); }
 
@@ -22,6 +22,7 @@ export async function POST(request: Request) {
   if (!Number.isInteger(eventDayNumber) || !eventConfig.days.some((day) => day.number === eventDayNumber && day.active)) return badRequest("Please choose an available event day.");
   if (!ticketTypes.has(ticketTypeCode)) return badRequest("Please choose a valid ticket type.");
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) return badRequest("Please select a quantity between 1 and 20.");
+  if (ticketTypeCode === "EARLY_BIRD_9_DAY" && quantity !== 1) return badRequest("Early Bird pass quantity must be 1.");
   if (!namePattern.test(name)) return badRequest("Enter your full name using valid characters.");
   if (!mobilePattern.test(mobile)) return badRequest("Enter a valid Indian mobile number.");
   if (!emailPattern.test(email)) return badRequest("Enter a valid email address.");

@@ -1,6 +1,7 @@
 export type DashboardSnapshot = {
+  earlyBird: { price: number; active: boolean } | null;
   pricing: Array<{
-    code: "SINGLE" | "COUPLE" | "GROUP_OF_4";
+    code: "SINGLE" | "COUPLE" | "GROUP_OF_4" | "EARLY_BIRD_9_DAY";
     name: string;
     price: number;
   }>;
@@ -34,7 +35,7 @@ export type DashboardSnapshot = {
     unused: number;
   }>;
   ticketTypes: Array<{
-    code: "SINGLE" | "COUPLE" | "GROUP_OF_4";
+    code: "SINGLE" | "COUPLE" | "GROUP_OF_4" | "EARLY_BIRD_9_DAY";
     name: string;
     paidBookings: number;
     selectedQuantity: number;

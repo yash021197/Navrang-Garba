@@ -13,7 +13,7 @@ type PaidBookingRow = {
   ticket_type_id: string;
   customers: Array<{ name: string }>;
   event_days: Array<{ day_number: number; event_date: string | null }>;
-  ticket_types: Array<{ code: "SINGLE" | "COUPLE" | "GROUP_OF_4"; name: string }>;
+  ticket_types: Array<{ code: "SINGLE" | "COUPLE" | "GROUP_OF_4" | "EARLY_BIRD_9_DAY"; name: string }>;
 };
 
 type TicketRow = { booking_id: string; event_day_id: string; status: "ACTIVE" | "USED" | "CANCELLED" };
@@ -26,7 +26,8 @@ type ScanRow = {
   tickets: Array<{ ticket_reference: string }>;
 };
 
-const ticketTypeOrder = ["SINGLE", "COUPLE", "GROUP_OF_4"] as const;
+const standardTicketTypeOrder = ["SINGLE", "COUPLE", "GROUP_OF_4"] as const;
+const ticketTypeOrder = [...standardTicketTypeOrder, "EARLY_BIRD_9_DAY"] as const;
 
 async function fetchAll<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
   const pageSize = 500;
@@ -50,7 +51,7 @@ function amount(value: number | string) {
 
 export async function getAdminDashboard(): Promise<DashboardSnapshot> {
   const supabase = createAdminClient();
-  const [bookingCountResult, eventDays, paidBookings, tickets, recentScansResult, ticketTypesResult, overridesResult] = await Promise.all([
+  const [bookingCountResult, eventDays, paidBookings, tickets, recentScansResult, ticketTypesResult, overridesResult, earlyBirdResult] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }),
     supabase.from("event_days").select("id,day_number,event_date").lte("day_number", 9).order("day_number"),
     fetchAll<PaidBookingRow>((from, to) => supabase.from("bookings").select("id,booking_reference,amount,quantity,created_at,event_day_id,ticket_type_id,customers(name),event_days(day_number,event_date),ticket_types(code,name)").eq("payment_status", "PAID").order("created_at", { ascending: false }).range(from, to)),
@@ -58,6 +59,7 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
     supabase.from("scan_logs").select("result,scanned_at,scanned_by,tickets(ticket_reference)").order("scanned_at", { ascending: false }).limit(10),
     supabase.from("ticket_types").select("id,code,name,price").in("code", ticketTypeOrder),
     supabase.from("event_day_ticket_prices").select("event_day_id,ticket_type_id,price"),
+    supabase.from("ticket_types").select("price,active").eq("code", "EARLY_BIRD_9_DAY").maybeSingle(),
   ]);
 
   if (bookingCountResult.error) throw new Error(bookingCountResult.error.message);
@@ -65,6 +67,7 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
   if (recentScansResult.error) throw new Error(recentScansResult.error.message);
   if (ticketTypesResult.error) throw new Error(ticketTypesResult.error.message);
   if (overridesResult.error) throw new Error(overridesResult.error.message);
+  if (earlyBirdResult.error) throw new Error(earlyBirdResult.error.message);
 
   const paidBookingIds = new Set(paidBookings.map((booking) => booking.id));
   const paidTickets = tickets.filter((ticket) => paidBookingIds.has(ticket.booking_id));
@@ -102,7 +105,8 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
   });
 
   return {
-    pricing: ticketTypeOrder.map((code) => {
+    earlyBird: earlyBirdResult.data ? { price: amount(earlyBirdResult.data.price), active: earlyBirdResult.data.active } : null,
+    pricing: standardTicketTypeOrder.map((code) => {
       const ticketType = ticketTypesResult.data?.find((item) => item.code === code);
       return {
         code,
@@ -114,7 +118,7 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
       eventDayId: day.id,
       dayNumber: day.day_number,
       date: day.event_date,
-      prices: ticketTypeOrder.map((code) => {
+      prices: standardTicketTypeOrder.map((code) => {
         const ticketType = ticketTypesResult.data?.find((item) => item.code === code);
         const override = (overridesResult.data as OverrideRow[] | null)?.find((item) => item.event_day_id === day.id && item.ticket_type_id === ticketType?.id);
         const defaultPrice = amount(ticketType?.price ?? 0);

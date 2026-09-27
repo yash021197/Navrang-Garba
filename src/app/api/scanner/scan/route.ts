@@ -13,8 +13,8 @@ export async function POST(request: Request) {
   if (error || !Array.isArray(data) || data.length !== 1) return Response.json({ error: "Ticket validation is temporarily unavailable." }, { status: 500 });
   const scan = data[0] as { result: string; ticket_reference: string | null; event_day_id: string | null; ticket_type_id: string | null };
   const entryAllowed = scan.result === "SUCCESS";
-  const status = entryAllowed ? "VALID" : scan.result === "ALREADY_USED" ? "ALREADY_USED" : "INVALID_TICKET";
-  const response: Record<string, unknown> = { status, entryAllowed, message: entryAllowed ? "ENTRY ALLOWED" : "ENTRY DENIED", reason: entryAllowed ? undefined : status === "ALREADY_USED" ? "TICKET ALREADY USED" : "INVALID TICKET" };
+  const status = entryAllowed ? "VALID" : scan.result === "ALREADY_USED_TODAY" ? "ALREADY_USED_TODAY" : scan.result === "PASS_NOT_VALID_TODAY" ? "PASS_NOT_VALID_TODAY" : scan.result === "ALREADY_USED" ? "ALREADY_USED" : "INVALID_TICKET";
+  const response: Record<string, unknown> = { status, entryAllowed, message: entryAllowed ? "ENTRY ALLOWED" : "ENTRY DENIED", reason: entryAllowed ? undefined : status === "ALREADY_USED_TODAY" ? "ALREADY USED TODAY" : status === "PASS_NOT_VALID_TODAY" ? "PASS NOT VALID TODAY" : status === "ALREADY_USED" ? "TICKET ALREADY USED" : "INVALID TICKET" };
   if (scan.ticket_reference && scan.event_day_id && scan.ticket_type_id) {
     const [{ data: day }, { data: type }] = await Promise.all([supabase.from("event_days").select("event_date").eq("id", scan.event_day_id).maybeSingle(), supabase.from("ticket_types").select("name").eq("id", scan.ticket_type_id).maybeSingle()]);
     response.ticketReference = scan.ticket_reference; response.eventDay = day?.event_date ?? null; response.ticketType = type?.name ?? null;
