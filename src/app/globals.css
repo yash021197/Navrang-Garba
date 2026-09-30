@@ -20,7 +20,7 @@
 @media (max-width:720px) {
   .container { width:min(1120px,calc(100% - 1.5rem)); }
   .header-content { min-height:4rem; gap:.75rem; }
-  .desktop-nav { display:none; }
+  .header-content .desktop-nav { display:none; }
   .mobile-nav { position:relative; display:block; flex-shrink:0; }
   .mobile-nav summary { min-height:2.75rem; cursor:pointer; list-style:none; border:1px solid var(--primary); border-radius:.55rem; padding:.65rem .8rem; color:var(--primary); font-weight:800; }
   .mobile-nav summary::-webkit-details-marker { display:none; }
