@@ -26,6 +26,7 @@ export default async function AdminPage() {
           ["Tickets generated", dashboard.summary.ticketsGenerated], ["Tickets scanned", dashboard.summary.ticketsScanned], ["Unused tickets", dashboard.summary.unusedTickets],
         ].map(([label, value]) => <article className="admin-metric" key={String(label)}><p>{label}</p><strong>{value}</strong></article>)}
       </section>
+      <section className="admin-section"><div className="admin-section-heading"><p className="eyebrow">Payment health</p><h2>Fulfillment monitoring</h2></div><div className="admin-type-grid">{[["Pending Razorpay payments", dashboard.paymentHealth.pending], ["Stale pending (15+ min)", dashboard.paymentHealth.stalePending], ["Webhook reconciliation failures", dashboard.paymentHealth.reconciliationFailures], ["Paid bookings without ticket", dashboard.paymentHealth.paidWithoutTicket]].map(([label, value]) => <article className="admin-type-card" key={String(label)}><h3>{label}</h3><strong>{value}</strong></article>)}</div></section>
 
       <PricingManager pricing={dashboard.pricing} />
       <EarlyBirdManager initial={dashboard.earlyBird} />

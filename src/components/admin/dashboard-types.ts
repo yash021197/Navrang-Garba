@@ -1,4 +1,5 @@
 export type DashboardSnapshot = {
+  paymentHealth: { pending: number; stalePending: number; reconciliationFailures: number; paidWithoutTicket: number };
   earlyBird: { price: number; active: boolean } | null;
   pricing: Array<{
     code: "SINGLE" | "COUPLE" | "GROUP_OF_4" | "EARLY_BIRD_9_DAY";

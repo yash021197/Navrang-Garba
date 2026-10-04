@@ -1,6 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyPaymentSignature } from "@/lib/razorpay";
-import { fulfillPaidBooking } from "@/lib/tickets";
+import { getRazorpay, verifyPaymentSignature } from "@/lib/razorpay";
+import { processCapturedPayment } from "@/lib/payment-resilience";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
@@ -10,20 +9,9 @@ export async function POST(request: Request) {
   const signature = typeof body?.razorpay_signature === "string" ? body.razorpay_signature : "";
   if (!orderId || !paymentId || !signature || !verifyPaymentSignature(orderId, paymentId, signature)) return Response.json({ error: "Payment verification failed." }, { status: 400 });
   try {
-    const supabase = createAdminClient();
-    const { data: payment, error } = await supabase.from("payments").select("id,booking_id,status,provider_order_id,bookings(payment_status)").eq("provider_order_id", orderId).single();
-    if (error || !payment || payment.provider_order_id !== orderId) return Response.json({ error: "Payment order not found." }, { status: 404 });
-    if (payment.status === "PAID") {
-      const { data: booking } = await supabase.from("bookings").select("booking_reference").eq("id", payment.booking_id).single();
-      if (booking) await fulfillPaidBooking(booking.booking_reference).catch((error) => console.error("Ticket email fulfillment failed", error));
-      return Response.json({ paid: true });
-    }
-    const { error: paymentError } = await supabase.from("payments").update({ status: "PAID", provider_payment_id: paymentId, provider_signature: signature, paid_at: new Date().toISOString() }).eq("id", payment.id).eq("status", "PENDING");
-    if (paymentError) throw paymentError;
-    const { error: bookingError } = await supabase.from("bookings").update({ payment_status: "PAID" }).eq("id", payment.booking_id).eq("payment_status", "PENDING");
-    if (bookingError) throw bookingError;
-    const { data: booking } = await supabase.from("bookings").select("booking_reference").eq("id", payment.booking_id).single();
-    if (booking) await fulfillPaidBooking(booking.booking_reference).catch((error) => console.error("Ticket email fulfillment failed", error));
+    const razorpayPayment = await getRazorpay().payments.fetch(paymentId) as { order_id: string; status: string; amount: number; currency: string };
+    if (razorpayPayment.order_id !== orderId || razorpayPayment.status !== "captured") return Response.json({ error: "Payment is not captured." }, { status: 409 });
+    await processCapturedPayment({ orderId, paymentId, amount: razorpayPayment.amount, currency: razorpayPayment.currency, source: "VERIFY" });
     return Response.json({ paid: true });
   } catch (error) { console.error("Razorpay verification failed", error); return Response.json({ error: "Payment verification failed." }, { status: 503 }); }
 }

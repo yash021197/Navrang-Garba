@@ -51,7 +51,8 @@ function amount(value: number | string) {
 
 export async function getAdminDashboard(): Promise<DashboardSnapshot> {
   const supabase = createAdminClient();
-  const [bookingCountResult, eventDays, paidBookings, tickets, recentScansResult, ticketTypesResult, overridesResult, earlyBirdResult] = await Promise.all([
+  const staleCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const [bookingCountResult, eventDays, paidBookings, tickets, recentScansResult, ticketTypesResult, overridesResult, earlyBirdResult, pendingPayments, stalePayments, webhookFailures] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }),
     supabase.from("event_days").select("id,day_number,event_date").lte("day_number", 9).order("day_number"),
     fetchAll<PaidBookingRow>((from, to) => supabase.from("bookings").select("id,booking_reference,amount,quantity,created_at,event_day_id,ticket_type_id,customers(name),event_days(day_number,event_date),ticket_types(code,name)").eq("payment_status", "PAID").order("created_at", { ascending: false }).range(from, to)),
@@ -60,6 +61,9 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
     supabase.from("ticket_types").select("id,code,name,price").in("code", ticketTypeOrder),
     supabase.from("event_day_ticket_prices").select("event_day_id,ticket_type_id,price"),
     supabase.from("ticket_types").select("price,active").eq("code", "EARLY_BIRD_9_DAY").maybeSingle(),
+    supabase.from("payments").select("id", { count: "exact", head: true }).eq("provider", "RAZORPAY").eq("status", "PENDING"),
+    supabase.from("payments").select("id", { count: "exact", head: true }).eq("provider", "RAZORPAY").eq("status", "PENDING").not("provider_order_id", "is", null).lt("created_at", staleCutoff),
+    supabase.from("payment_webhook_events").select("id", { count: "exact", head: true }).eq("processing_status", "FAILED"),
   ]);
 
   if (bookingCountResult.error) throw new Error(bookingCountResult.error.message);
@@ -68,6 +72,7 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
   if (ticketTypesResult.error) throw new Error(ticketTypesResult.error.message);
   if (overridesResult.error) throw new Error(overridesResult.error.message);
   if (earlyBirdResult.error) throw new Error(earlyBirdResult.error.message);
+  if (pendingPayments.error || stalePayments.error || webhookFailures.error) throw new Error("Payment health data is unavailable.");
 
   const paidBookingIds = new Set(paidBookings.map((booking) => booking.id));
   const paidTickets = tickets.filter((ticket) => paidBookingIds.has(ticket.booking_id));
@@ -105,6 +110,7 @@ export async function getAdminDashboard(): Promise<DashboardSnapshot> {
   });
 
   return {
+    paymentHealth: { pending: pendingPayments.count ?? 0, stalePending: stalePayments.count ?? 0, reconciliationFailures: webhookFailures.count ?? 0, paidWithoutTicket: paidBookings.filter((booking) => !paidTickets.some((ticket) => ticket.booking_id === booking.id)).length },
     earlyBird: earlyBirdResult.data ? { price: amount(earlyBirdResult.data.price), active: earlyBirdResult.data.active } : null,
     pricing: standardTicketTypeOrder.map((code) => {
       const ticketType = ticketTypesResult.data?.find((item) => item.code === code);
