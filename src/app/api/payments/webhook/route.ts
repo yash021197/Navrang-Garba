@@ -6,14 +6,19 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-razorpay-signature") ?? "";
   if (!signature || !verifyWebhookSignature(rawBody, signature)) return Response.json({ error: "Invalid webhook signature." }, { status: 400 });
-  const event = JSON.parse(rawBody) as { event?: string; payload?: { payment?: { entity?: { id?: string; order_id?: string; status?: string; amount?: number; currency?: string } } } };
+  let event: { event?: string; payload?: { payment?: { entity?: { id?: string; order_id?: string } } } };
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return Response.json({ error: "Invalid webhook payload." }, { status: 400 });
+  }
   const paymentEntity = event.payload?.payment?.entity;
   const audit = await recordWebhookEvent({ rawBody, eventType: event.event ?? "unknown", paymentId: paymentEntity?.id, orderId: paymentEntity?.order_id, eventId: request.headers.get("x-razorpay-event-id") ?? undefined });
-  if (audit.duplicate) return Response.json({ received: true, duplicate: true });
-  if (event.event !== "payment.captured" || !paymentEntity?.id || !paymentEntity.order_id || paymentEntity.status !== "captured" || typeof paymentEntity.amount !== "number" || !Number.isSafeInteger(paymentEntity.amount) || !paymentEntity.currency) { await finishWebhookEvent(audit.id, "IGNORED", "Unsupported or incomplete event."); return Response.json({ received: true }); }
-  const { order_id: orderId, id: paymentId, amount, currency } = paymentEntity;
+  if (!audit.claimed) return Response.json({ received: true, duplicate: true });
+  if (event.event !== "payment.captured" || !paymentEntity?.id || !paymentEntity.order_id) { await finishWebhookEvent(audit.id, "IGNORED", "Unsupported or incomplete event."); return Response.json({ received: true }); }
+  const { order_id: orderId, id: paymentId } = paymentEntity;
   try {
-    await processCapturedPayment({ orderId, paymentId, amount, currency, source: "WEBHOOK" });
+    await processCapturedPayment({ orderId, paymentId, source: "WEBHOOK" });
     await finishWebhookEvent(audit.id, "PROCESSED");
     return Response.json({ received: true });
   } catch (error) {

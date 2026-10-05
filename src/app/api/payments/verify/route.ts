@@ -1,4 +1,4 @@
-import { getRazorpay, verifyPaymentSignature } from "@/lib/razorpay";
+import { verifyPaymentSignature } from "@/lib/razorpay";
 import { processCapturedPayment } from "@/lib/payment-resilience";
 export const runtime = "nodejs";
 
@@ -9,9 +9,7 @@ export async function POST(request: Request) {
   const signature = typeof body?.razorpay_signature === "string" ? body.razorpay_signature : "";
   if (!orderId || !paymentId || !signature || !verifyPaymentSignature(orderId, paymentId, signature)) return Response.json({ error: "Payment verification failed." }, { status: 400 });
   try {
-    const razorpayPayment = await getRazorpay().payments.fetch(paymentId) as { order_id: string; status: string; amount: number; currency: string };
-    if (razorpayPayment.order_id !== orderId || razorpayPayment.status !== "captured") return Response.json({ error: "Payment is not captured." }, { status: 409 });
-    await processCapturedPayment({ orderId, paymentId, amount: razorpayPayment.amount, currency: razorpayPayment.currency, source: "VERIFY" });
+    await processCapturedPayment({ orderId, paymentId, source: "VERIFY" });
     return Response.json({ paid: true });
   } catch (error) { console.error("Razorpay verification failed", error); return Response.json({ error: "Payment verification failed." }, { status: 503 }); }
 }

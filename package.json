@@ -7,7 +7,7 @@
     "build": "node ./node_modules/next/dist/bin/next build",
     "start": "node ./node_modules/next/dist/bin/next start",
     "lint": "node ./node_modules/eslint/bin/eslint.js",
-    "test:payments": "node --test tests/payment-reconciliation-policy.test.mjs"
+    "test:payments": "node --test tests/payment-reconciliation-policy.test.mjs tests/payment-resilience-flow.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

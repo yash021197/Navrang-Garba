@@ -1,7 +1,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import type Razorpay from "razorpay";
+import { getRazorpay } from "@/lib/razorpay";
 import { fulfillPaidBooking } from "@/lib/tickets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isEligibleCapturedPayment } from "@/lib/payment-reconciliation-policy";
@@ -10,69 +10,93 @@ const staleAfterMs = 15 * 60 * 1000;
 const mask = (value: string) => `${value.slice(0, 8)}…${value.slice(-4)}`;
 const log = (event: string, details: Record<string, unknown>) => console.info(JSON.stringify({ event, ...details }));
 
-type Capture = { orderId: string; paymentId: string; amount: number; currency: string; source: "VERIFY" | "WEBHOOK" | "RECONCILIATION" };
-type PaymentRow = { id: string; booking_id: string; status: string; provider_order_id: string | null; provider_payment_id: string | null; amount: number | string; currency: string; bookings: { booking_reference: string; amount: number | string; currency: string; payment_status: string } | Array<{ booking_reference: string; amount: number | string; currency: string; payment_status: string }> | null };
+type Capture = { orderId: string; paymentId: string; source: "VERIFY" | "WEBHOOK" | "RECONCILIATION" };
+type RazorpayPayment = { id: string; order_id: string; status: string; amount: number; currency: string };
+type Finalization = { booking_reference: string; already_paid: boolean };
 
-function bookingOf(payment: PaymentRow) {
-  return Array.isArray(payment.bookings) ? payment.bookings[0] : payment.bookings;
+async function fetchCapturedPayment(capture: Capture) {
+  const payment = await getRazorpay().payments.fetch(capture.paymentId) as RazorpayPayment;
+  if (!isEligibleCapturedPayment(payment, { orderId: capture.orderId, amount: payment.amount, currency: "INR" })) {
+    throw new Error("Razorpay payment is not an INR captured payment for this order.");
+  }
+  return payment;
 }
 
 export async function processCapturedPayment(capture: Capture) {
+  const razorpayPayment = await fetchCapturedPayment(capture);
   const supabase = createAdminClient();
-  const { data, error } = await supabase.from("payments").select("id,booking_id,status,provider_order_id,provider_payment_id,amount,currency,bookings(booking_reference,amount,currency,payment_status)").eq("provider_order_id", capture.orderId).maybeSingle<PaymentRow>();
-  if (error) throw new Error(`Payment lookup failed: ${error.message}`);
-  if (!data) throw new Error("No internal payment matches the Razorpay order.");
-  const booking = bookingOf(data);
-  const expectedPaise = Math.round(Number(data.amount) * 100);
-  if (!booking || data.provider_order_id !== capture.orderId || expectedPaise !== capture.amount || data.currency !== capture.currency || Number(booking.amount) !== Number(data.amount) || booking.currency !== data.currency) throw new Error("Captured payment metadata does not match the internal booking.");
-  if (data.provider_payment_id && data.provider_payment_id !== capture.paymentId) throw new Error("Razorpay payment ID conflicts with the recorded payment.");
+  const { data, error } = await supabase.rpc("finalize_captured_razorpay_payment", {
+    p_provider_order_id: capture.orderId,
+    p_provider_payment_id: razorpayPayment.id,
+    p_amount_paise: razorpayPayment.amount,
+    p_currency: razorpayPayment.currency,
+  }).maybeSingle<Finalization>();
+  if (error || !data) throw new Error(`Atomic payment finalization failed: ${error?.message ?? "no result"}`);
 
-  if (data.status !== "PAID") {
-    const { error: paymentError } = await supabase.from("payments").update({ status: "PAID", provider_payment_id: capture.paymentId, paid_at: new Date().toISOString() }).eq("id", data.id).eq("status", "PENDING");
-    if (paymentError) throw new Error(`Payment update failed: ${paymentError.message}`);
-    const { error: bookingError } = await supabase.from("bookings").update({ payment_status: "PAID" }).eq("id", data.booking_id).eq("payment_status", "PENDING");
-    if (bookingError) throw new Error(`Booking update failed: ${bookingError.message}`);
-  }
-
-  log("payment.captured.reconciled", { source: capture.source, bookingReference: booking.booking_reference, orderId: mask(capture.orderId), paymentId: mask(capture.paymentId) });
-  const fulfillment = await fulfillPaidBooking(booking.booking_reference);
-  log("payment.fulfillment.completed", { bookingReference: booking.booking_reference, ticketReference: fulfillment.ticket.ticket_reference, email: fulfillment.email.state });
-  return { bookingReference: booking.booking_reference, ticketReference: fulfillment.ticket.ticket_reference };
+  log("payment.captured.finalized", { source: capture.source, orderId: mask(capture.orderId), paymentId: mask(capture.paymentId), alreadyPaid: data.already_paid });
+  const fulfillment = await fulfillPaidBooking(data.booking_reference);
+  log("payment.fulfillment.completed", { source: capture.source, ticketReference: fulfillment.ticket.ticket_reference, email: fulfillment.email.state });
+  return { bookingReference: data.booking_reference, ticketReference: fulfillment.ticket.ticket_reference, alreadyPaid: data.already_paid };
 }
 
 export async function recordWebhookEvent(input: { rawBody: string; eventType: string; paymentId?: string; orderId?: string; eventId?: string }) {
   const deliveryKey = input.eventId || crypto.createHash("sha256").update(input.rawBody).digest("hex");
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.from("payment_webhook_events").upsert({ delivery_key: deliveryKey, event_type: input.eventType, provider_payment_id: input.paymentId ?? null, provider_order_id: input.orderId ?? null, processing_status: "RECEIVED" }, { onConflict: "delivery_key", ignoreDuplicates: true }).select("id").maybeSingle();
-  if (error) throw new Error(`Webhook audit insert failed: ${error.message}`);
-  return { id: data?.id ?? null, duplicate: !data };
+  const { data, error } = await createAdminClient().rpc("claim_razorpay_webhook_event", {
+    p_delivery_key: deliveryKey,
+    p_event_type: input.eventType,
+    p_provider_payment_id: input.paymentId ?? null,
+    p_provider_order_id: input.orderId ?? null,
+  }).maybeSingle<{ id: string; claimed: boolean }>();
+  if (error) throw new Error(`Webhook audit claim failed: ${error.message}`);
+  return { id: data?.id ?? null, claimed: data?.claimed === true };
 }
 
 export async function finishWebhookEvent(id: string | null, status: "PROCESSED" | "IGNORED" | "FAILED", reason?: string) {
   if (!id) return;
-  await createAdminClient().from("payment_webhook_events").update({ processing_status: status, failure_reason: reason?.slice(0, 500) ?? null, processed_at: new Date().toISOString() }).eq("id", id);
+  const { error } = await createAdminClient().from("payment_webhook_events").update({ processing_status: status, failure_reason: reason?.slice(0, 500) ?? null, processed_at: new Date().toISOString() }).eq("id", id).eq("processing_status", "RECEIVED");
+  if (error) throw new Error(`Webhook audit completion failed: ${error.message}`);
 }
 
-type RazorpayPayment = { id: string; order_id: string; status: string; amount: number; currency: string };
-export async function reconcileStalePendingPayments(razorpay: Razorpay) {
+export async function reconcileStalePendingPayments() {
   const cutoff = new Date(Date.now() - staleAfterMs).toISOString();
   const supabase = createAdminClient();
-  const { data, error } = await supabase.from("payments").select("id,provider_order_id,amount,currency,bookings!inner(booking_reference,payment_status)").eq("provider", "RAZORPAY").eq("status", "PENDING").not("provider_order_id", "is", null).lt("created_at", cutoff).limit(50);
+  const { data, error } = await supabase.from("payments").select("provider_order_id,amount,currency").eq("provider", "RAZORPAY").eq("status", "PENDING").not("provider_order_id", "is", null).lt("created_at", cutoff).limit(50);
   if (error) throw new Error(`Pending payment lookup failed: ${error.message}`);
+
   const results: Array<{ orderId: string; state: string }> = [];
   for (const row of data ?? []) {
     const orderId = row.provider_order_id as string;
     try {
-      const response = await razorpay.orders.fetchPayments(orderId);
-      const captured = (response.items as RazorpayPayment[]).filter((payment) => isEligibleCapturedPayment(payment, { orderId, amount: Math.round(Number(row.amount) * 100), currency: row.currency }));
-      if (captured.length !== 1) { results.push({ orderId: mask(orderId), state: captured.length ? "AMBIGUOUS_CAPTURE" : "NOT_CAPTURED" }); continue; }
+      const response = await getRazorpay().orders.fetchPayments(orderId);
+      const captured = (response.items as RazorpayPayment[]).filter((payment) => isEligibleCapturedPayment(payment, { orderId, amount: Math.round(Number(row.amount) * 100), currency: "INR" }));
+      if (captured.length !== 1) {
+        results.push({ orderId: mask(orderId), state: captured.length ? "AMBIGUOUS_CAPTURE" : "NOT_CAPTURED" });
+        continue;
+      }
       const payment = captured[0];
-      await processCapturedPayment({ orderId, paymentId: payment.id, amount: payment.amount, currency: payment.currency, source: "RECONCILIATION" });
+      await processCapturedPayment({ orderId, paymentId: payment.id, source: "RECONCILIATION" });
       results.push({ orderId: mask(orderId), state: "RECONCILED" });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Unknown reconciliation error";
       log("payment.reconciliation.failed", { orderId: mask(orderId), reason: message });
       results.push({ orderId: mask(orderId), state: "FAILED" });
+    }
+  }
+  const { data: paidWithoutTicket, error: fulfillmentRepairError } = await supabase
+    .from("bookings")
+    .select("booking_reference,tickets(id),payments!inner(status)")
+    .eq("payment_status", "PAID")
+    .eq("payments.status", "PAID")
+    .limit(50);
+  if (fulfillmentRepairError) throw new Error(`Paid booking fulfillment lookup failed: ${fulfillmentRepairError.message}`);
+  for (const booking of paidWithoutTicket ?? []) {
+    if (booking.tickets.length !== 0) continue;
+    try {
+      const fulfillment = await fulfillPaidBooking(booking.booking_reference);
+      log("payment.fulfillment.repaired", { ticketReference: fulfillment.ticket.ticket_reference, email: fulfillment.email.state });
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Unknown fulfillment repair error";
+      log("payment.fulfillment.repair_failed", { reason: message });
     }
   }
   return { staleAfterMinutes: staleAfterMs / 60000, results };
