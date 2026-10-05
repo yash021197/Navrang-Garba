@@ -49,6 +49,9 @@ begin
 end;
 $$;
 
+revoke execute on function public.claim_razorpay_webhook_event(text, text, text, text) from public;
+grant execute on function public.claim_razorpay_webhook_event(text, text, text, text) to service_role;
+
 create or replace function public.finalize_captured_razorpay_payment(
   p_provider_order_id text,
   p_provider_payment_id text,
@@ -105,3 +108,6 @@ begin
   return query select current_booking.booking_reference, false;
 end;
 $$;
+
+revoke execute on function public.finalize_captured_razorpay_payment(text, text, bigint, text) from public;
+grant execute on function public.finalize_captured_razorpay_payment(text, text, bigint, text) to service_role;
