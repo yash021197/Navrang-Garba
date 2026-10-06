@@ -1,0 +1,21 @@
+name: Reconcile pending Razorpay payments
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile stale pending payments
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "https://navranggarba.com/api/internal/payments/reconcile"
